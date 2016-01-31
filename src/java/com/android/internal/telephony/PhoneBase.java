@@ -232,6 +232,7 @@ public abstract class PhoneBase extends Handler implements Phone {
     boolean mDnsCheckDisabled;
     public DcTrackerBase mDcTracker;
     boolean mDoesRilSendMultipleCallRing;
+    boolean mDoesRilSendCallRing;
     int mCallRingContinueToken;
     int mCallRingDelay;
     public boolean mIsTheCurrentActivePhone = true;
@@ -462,6 +463,13 @@ public abstract class PhoneBase extends Handler implements Phone {
         mDoesRilSendMultipleCallRing = SystemProperties.getBoolean(
                 TelephonyProperties.PROPERTY_RIL_SENDS_MULTIPLE_CALL_RING, true);
         Rlog.d(LOG_TAG, "mDoesRilSendMultipleCallRing=" + mDoesRilSendMultipleCallRing);
+        // Some RIL do not even send a single RIL_UNSOL_CALL_RING
+
+ mDoesRilSendCallRing = SystemProperties.getBoolean(
+
+ "ro.telephony.call_ring", true);
+
+ Rlog.d(LOG_TAG, "mDoesRilSendCallRing=" + mDoesRilSendCallRing);       
 
         mCallRingDelay = SystemProperties.getInt(
                 TelephonyProperties.PROPERTY_CALL_RING_DELAY, 3000);
@@ -2172,6 +2180,25 @@ public abstract class PhoneBase extends Handler implements Phone {
     public void notifyNewRingingConnectionP(Connection cn) {
         if (!mIsVoiceCapable)
             return;
+            // Fake RIL_UNSOL_CALL_RING if the RIL doesn't send it.
+
+ // Note that we need the delay to prevent the request from
+
+ // being sent after CallTracker detects "RINGING" state, but
+
+ // before the correct contact-specific ringtone is queried.
+
+ // Otherwise, the incorrect ringtone will be used
+
+ if (!mDoesRilSendCallRing) {
+
+ int token = ++mCallRingContinueToken;
+
+ sendMessageDelayed(
+
+ obtainMessage(EVENT_CALL_RING_CONTINUE, token, 0), mCallRingDelay);
+
+ }
         AsyncResult ar = new AsyncResult(null, cn, null);
         mNewRingingConnectionRegistrants.notifyRegistrants(ar);
     }
@@ -2767,6 +2794,7 @@ public abstract class PhoneBase extends Handler implements Phone {
         pw.println(" mDnsCheckDisabled=" + mDnsCheckDisabled);
         pw.println(" mDcTracker=" + mDcTracker);
         pw.println(" mDoesRilSendMultipleCallRing=" + mDoesRilSendMultipleCallRing);
+        pw.println(" mDoesRilSendCallRing=" + mDoesRilSendCallRing);
         pw.println(" mCallRingContinueToken=" + mCallRingContinueToken);
         pw.println(" mCallRingDelay=" + mCallRingDelay);
         pw.println(" mIsTheCurrentActivePhone=" + mIsTheCurrentActivePhone);
